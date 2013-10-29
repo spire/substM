@@ -22,7 +22,7 @@
 -- Based on @Unbound.LocallyNameless.Subst@.
 ----------------------------------------------------------------------
 
-module Spire.Unbound.SubstM (SubstM(..) , substsM) where
+module Unbound.LocallyNameless.SubstM (SubstM(..) , substsM) where
 import Control.Monad (foldM)
 import Generics.RepLib
 import Unbound.LocallyNameless.Types
