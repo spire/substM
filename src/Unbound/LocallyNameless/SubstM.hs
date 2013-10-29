@@ -1,9 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses
            , FlexibleContexts
            , FlexibleInstances
-           , TypeFamilies
-           , GADTs
-           , ScopedTypeVariables
   #-}
 
 ----------------------------------------------------------------------
