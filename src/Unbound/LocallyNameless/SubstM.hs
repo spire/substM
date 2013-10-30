@@ -19,7 +19,7 @@
 -- Based on @Unbound.LocallyNameless.Subst@.
 ----------------------------------------------------------------------
 
-module Unbound.LocallyNameless.SubstM (SubstM(..) , substsM) where
+module Unbound.LocallyNameless.SubstM (SubstM(..)) where
 import Control.Monad (foldM)
 import Generics.RepLib
 import Unbound.LocallyNameless.Types
@@ -31,17 +31,18 @@ type SubstMType m b a = Name b -> b -> a -> m a
 type SubstHookMType m b a = a -> Maybe (Name b -> b -> m a)
 
 -- | Substitute 'b's into 'a's in the monad 'm'.
---
--- The interface is @substHookM@, which generalizes
--- @Unbound.LocallyNameless.Subst.isVar@. The user should define
--- 'substHookM' in all cases where a variable is encountered or where
--- the results of a regular substitution needs to be post processed
--- (e.g. in hereditary substitution).
 class (Monad m, Rep1 (SubstDM m b) a) => SubstM m b a where
 
+  -- | A Generalization of @Unbound.LocallyNameless.Subst.isVar@.
+  --
+  -- The user should define
+  -- 'substHookM' in all cases where a variable is encountered or where
+  -- the results of a regular substitution needs to be post processed
+  -- (e.g. in hereditary substitution).
   substHookM :: SubstHookMType m b a
   substHookM _ = Nothing
 
+  -- | Single substitution.
   substM :: SubstMType m b a
   substM n u x | isFree n =
      case substHookM x of
@@ -49,15 +50,13 @@ class (Monad m, Rep1 (SubstDM m b) a) => SubstM m b a where
        Nothing -> substR1M rep1 n u x
   substM m _ _ = error $ "Cannot substitute for bound variable " ++ show m
 
-----------------------------------------------------------------------
-
--- | *Iterated* substitution.
---
--- Note: this is an *iterated* multi substitution, whereas
--- @Unbound.LocallyNameless.Subst.substs@ is a *simultaneous* multi
--- substitution.
-substsM :: SubstM m b a => [(Name b , b)] -> a -> m a
-substsM subs x = foldM (flip . uncurry $ substM) x subs
+  -- | Multi substitution.
+  --
+  -- Note: the default implementation is an *iterated* multi substitution, whereas
+  -- @Unbound.LocallyNameless.Subst.substs@ is a *simultaneous* multi
+  -- substitution.
+  substsM :: SubstM m b a => [(Name b , b)] -> a -> m a
+  substsM subs x = foldM (flip . uncurry $ substM) x subs
 
 ----------------------------------------------------------------------
 
