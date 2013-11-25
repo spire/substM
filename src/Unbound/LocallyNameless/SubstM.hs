@@ -23,8 +23,8 @@
 module Unbound.LocallyNameless.SubstM (SubstM(..)) where
 import Control.Monad (foldM)
 import Generics.RepLib
+import Unbound.LocallyNameless
 import Unbound.LocallyNameless.Types
-import Unbound.LocallyNameless.Alpha
 
 ----------------------------------------------------------------------
 
@@ -58,6 +58,24 @@ class (Monad m, Rep1 (SubstDM m b) a) => SubstM m b a where
   -- substitution.
   substsM :: SubstM m b a => [(Name b , b)] -> a -> m a
   substsM subs x = foldM (flip . uncurry $ substM) x subs
+
+-- The 'Unbound' library seems to assume that there are no free
+-- deBruijn variables in the terms it closes with 'bind', and so does
+-- not increment (weaken) free deBruijn variables.  So, we manually go
+-- under binders with 'unbind' to avoid free deBruijn variables in
+-- arguments to 'substM'.
+instance (Fresh m , Alpha p , Alpha t , SubstM m b p , SubstM m b t)
+  => SubstM m b (Bind p t) where
+  substHookM = undefined -- ^ Users cannot define 'substHookM' for 'Bind'.
+  substM n u bnd = do
+    (p , t) <- unbind bnd
+    p' <- substM n u p
+    t' <- substM n u t
+    return $ bind p' t'
+
+-- XXX: need separate (nearly identical) instances for 'SetBind' and
+-- 'PermBind', and maybe similar instances for 'Rec', 'TRec', and
+-- maybe 'Rebind'.
 
 ----------------------------------------------------------------------
 
@@ -105,12 +123,20 @@ instance (Monad m, SubstM m c a) => SubstM m c [a]
 instance (Monad m, SubstM m c a) => SubstM m c (Maybe a)
 instance (Monad m, SubstM m c a, SubstM m c b) => SubstM m c (Either a b)
 
+-- XXX: all types which use 'close' in their smart constructors may
+-- need a custom 'SubstM' instance. These include 'GenBind', 'Rec',
+-- and 'Rebind', 'TRec'; the 'Embed' type is safe.
+
+{-
 instance (Rep order, Rep card, Monad m, SubstM m c b, SubstM m c a, Alpha a,Alpha b) =>
     SubstM m c (GenBind order card a b)
 instance (Monad m, SubstM m c b, SubstM m c a, Alpha a, Alpha b) =>
     SubstM m c (Rebind a b)
+-}
 
 instance (Monad m, SubstM m c a) => SubstM m c (Embed a)
+{-
 instance (Alpha a, Monad m, SubstM m c a) => SubstM m c (Rec a)
+-}
 
 ----------------------------------------------------------------------
