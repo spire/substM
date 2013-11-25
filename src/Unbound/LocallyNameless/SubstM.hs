@@ -7,16 +7,17 @@
 -- |
 -- Module      :  Unbound.LocallyNameless.SubstM
 -- License     :  MIT (see LICENSE)
--- Author      :  Nathan Collins <nathan.collins@gmail.com>
+-- Maintainer  :  Nathan Collins <nathan.collins@gmail.com>
 --             ,  Larry Diehl <larrytheliquid@gmail.com>
--- Portability :  GHC only (-XKitchenSink)
 --
 -- The @SubstM@ type class for generic capture-avoiding substitution
 -- in a monad.  Working in a monad is useful e.g. when implementing
 -- hereditary substitution, where substitution must recursively reduce
 -- introduced redexes.
 --
--- Based on @Unbound.LocallyNameless.Subst@.
+-- Based on @Unbound.LocallyNameless.Subst@ by Stephanie Weirich and
+-- Brent Yorgey.
+
 ----------------------------------------------------------------------
 
 module Unbound.LocallyNameless.SubstM (SubstM(..)) where
