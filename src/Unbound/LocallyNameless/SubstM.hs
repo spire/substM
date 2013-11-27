@@ -21,9 +21,11 @@
 ----------------------------------------------------------------------
 
 module Unbound.LocallyNameless.SubstM (SubstM(..)) where
+import Control.Applicative
 import Control.Monad (foldM)
 import Generics.RepLib
 import Unbound.LocallyNameless
+import Unbound.LocallyNameless.Alpha
 import Unbound.LocallyNameless.Types
 
 ----------------------------------------------------------------------
@@ -59,23 +61,51 @@ class (Monad m, Rep1 (SubstDM m b) a) => SubstM m b a where
   substsM :: SubstM m b a => [(Name b , b)] -> a -> m a
   substsM subs x = foldM (flip . uncurry $ substM) x subs
 
--- The 'Unbound' library seems to assume that there are no free
--- deBruijn variables in the terms it closes with 'bind', and so does
--- not increment (weaken) free deBruijn variables.  So, we manually go
--- under binders with 'unbind' to avoid free deBruijn variables in
--- arguments to 'substM'.
-instance (Fresh m , Alpha p , Alpha t , SubstM m b p , SubstM m b t)
-  => SubstM m b (Bind p t) where
-  substHookM = undefined -- ^ Users cannot define 'substHookM' for 'Bind'.
+----------------------------------------------------------------------
+-- | The 'Unbound' library does not support user manipulation of free
+-- deBruijn variables. So, we avoid free deBruijn variables by opening
+-- all binders; going under them automatically with the generic
+-- 'substR1M' via the default 'SubstM' instance would cause capture of
+-- deBruijn variables.
+
+instance (Applicative m , Fresh m , Rep order , Rep card ,
+          Alpha p , Alpha t , SubstM m b p , SubstM m b t)
+  => SubstM m b (GenBind order card p t) where
   substM n u bnd = do
     (p , t) <- unbind bnd
-    p' <- substM n u p
-    t' <- substM n u t
-    return $ bind p' t'
+    genBind <$> substM n u p <*> substM n u t
+   where
+    -- Same as 'Unbound.LocallyNameless.Ops.bind', but with a more
+    -- general type signature; this is the left inverse of 'unbind'.
+    genBind :: (Alpha p, Alpha t) => p -> t -> GenBind order card p t
+    genBind p t = B p (closeT p t)
 
--- XXX: need separate (nearly identical) instances for 'SetBind' and
--- 'PermBind', and maybe similar instances for 'Rec', 'TRec', and
--- maybe 'Rebind'.
+instance (Applicative m , Fresh m , Alpha p , Alpha q, SubstM m b p ,
+          SubstM m b q)
+  => SubstM m b (Rebind p q) where
+  substM n u bnd = do
+    let (p , q) = unrebind bnd
+    rebind <$> substM n u p <*> substM n u q
+
+instance (Applicative m , Fresh m , Alpha p , SubstM m b p)
+  => SubstM m b (Rec p) where
+  substM n u bnd = do
+    let p = unrec bnd
+    rec <$> substM n u p
+
+-- The analogous instance for 'TRec' fails to type check with
+--
+--   Could not deduce (Rep1 (SubstDM m b) (TRec p))
+--
+-- However, Unbound's 'Subst' also has no 'TRec' instance, so maybe
+-- there's a reason?
+{-
+instance (Applicative m , Fresh m , Alpha p , SubstM m b p)
+  => SubstM m b (TRec p) where
+  substM n u bnd = do
+    p <- untrec bnd
+    trec <$> substM n u p
+-}
 
 ----------------------------------------------------------------------
 
@@ -101,6 +131,8 @@ substR1M (Data1 _dt cons) = \ x y d ->
 substR1M _ = \ _ _ c -> return c
 
 ----------------------------------------------------------------------
+-- | All Unbound binding constructs need custom instances; the default
+-- instance is safe in all other cases, including user defined types.
 
 instance Monad m => SubstM m b Int
 instance Monad m => SubstM m b Bool
@@ -123,20 +155,6 @@ instance (Monad m, SubstM m c a) => SubstM m c [a]
 instance (Monad m, SubstM m c a) => SubstM m c (Maybe a)
 instance (Monad m, SubstM m c a, SubstM m c b) => SubstM m c (Either a b)
 
--- XXX: all types which use 'close' in their smart constructors may
--- need a custom 'SubstM' instance. These include 'GenBind', 'Rec',
--- and 'Rebind', 'TRec'; the 'Embed' type is safe.
-
-{-
-instance (Rep order, Rep card, Monad m, SubstM m c b, SubstM m c a, Alpha a,Alpha b) =>
-    SubstM m c (GenBind order card a b)
-instance (Monad m, SubstM m c b, SubstM m c a, Alpha a, Alpha b) =>
-    SubstM m c (Rebind a b)
--}
-
 instance (Monad m, SubstM m c a) => SubstM m c (Embed a)
-{-
-instance (Alpha a, Monad m, SubstM m c a) => SubstM m c (Rec a)
--}
 
 ----------------------------------------------------------------------
