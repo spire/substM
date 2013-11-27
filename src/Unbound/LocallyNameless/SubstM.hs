@@ -32,7 +32,7 @@ type SubstMType m b a = Name b -> b -> a -> m a
 type SubstHookMType m b a = a -> Maybe (Name b -> b -> m a)
 
 -- | Substitute 'b's into 'a's in the monad 'm'.
-class (Monad m, Rep1 (SubstDM m b) a) => SubstM m b a where
+class (Monad m, Rep1 (SubstMD m b) a) => SubstM m b a where
 
   -- | A Generalization of @Unbound.LocallyNameless.Subst.isVar@.
   --
@@ -48,7 +48,7 @@ class (Monad m, Rep1 (SubstDM m b) a) => SubstM m b a where
   substM n u x | isFree n =
      case substHookM x of
        Just f -> f n u
-       Nothing -> substR1M rep1 n u x
+       Nothing -> substMR1 rep1 n u x
   substM m _ _ = error $ "Cannot substitute for bound variable " ++ show m
 
   -- | Multi substitution.
@@ -61,26 +61,26 @@ class (Monad m, Rep1 (SubstDM m b) a) => SubstM m b a where
 
 ----------------------------------------------------------------------
 
-data SubstDM m b a = SubstDM {
-  substHookDM :: SubstHookMType m b a ,
-  substDM :: SubstMType m b a
+data SubstMD m b a = SubstMD {
+  substHookMD :: SubstHookMType m b a ,
+  substMD :: SubstMType m b a
 }
 
-instance (SubstM m b a) => Sat (SubstDM m b a) where
-  dict = SubstDM substHookM substM
+instance (SubstM m b a) => Sat (SubstMD m b a) where
+  dict = SubstMD substHookM substM
 
-substDefaultM :: Monad m => Rep1 (SubstDM m b) a => SubstMType m b a
-substDefaultM = substR1M rep1
+substDefaultM :: Monad m => Rep1 (SubstMD m b) a => SubstMType m b a
+substDefaultM = substMR1 rep1
 
 ----------------------------------------------------------------------
 
-substR1M :: Monad m => R1 (SubstDM m b) a -> SubstMType m b a
-substR1M (Data1 _dt cons) = \ x y d ->
+substMR1 :: Monad m => R1 (SubstMD m b) a -> SubstMType m b a
+substMR1 (Data1 _dt cons) = \ x y d ->
   case (findCon cons d) of
   Val c rec kids ->
-      let z = mapM_l (\ w -> substDM w x y) rec kids
+      let z = mapM_l (\ w -> substMD w x y) rec kids
       in return . to c =<< z
-substR1M _ = \ _ _ c -> return c
+substMR1 _ = \ _ _ c -> return c
 
 ----------------------------------------------------------------------
 
